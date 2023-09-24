@@ -95,10 +95,12 @@ export default class CatalogViewer {
     this.chunkLength = this.#chunks.length;
 
     // プレースホルダーをセット
+    const fragment = document.createDocumentFragment();
     for (let i = 1; i <= this.#itemsPerPage; i++) {
       let nodeDummy = this.#el.tempDummy.content.cloneNode(true);
-      this.#el.viewer.append(nodeDummy);
+      fragment.append(nodeDummy);
     }
+    this.#el.viewer.append(fragment);
   }
 
   /**
@@ -196,26 +198,32 @@ export default class CatalogViewer {
     this.#el.viewer.innerHTML = "";
 
     // 表示エリアに要素を追加
+
+    const fragmentOuter = document.createDocumentFragment();
     chunk.forEach((row) => {
       // template要素を複製してデータを挿入
-      const temp1 = this.#el.temp1.content.cloneNode(true);
-      temp1.querySelector('[u-attr="title"]').textContent = row.title;
+      const tempOuter = this.#el.temp1.content.cloneNode(true);
+      const fragmentInner = document.createDocumentFragment();
+      tempOuter.querySelector('[u-attr="title"]').textContent = row.title;
 
       // 表示エリア内のネストした画像表示部にtempleteをクローンした要素を追加
       let list = imageList.find(
         (img) => row.imgs_id === img.imgs_id
       ).image_paths;
       list.forEach((path) => {
-        const temp2 = this.#el.temp2.content.cloneNode(true);
-        temp2.querySelector('[u-attr="href"]').href = path;
-        temp2.querySelector('[u-attr="src"]').src = path;
-        temp2.querySelector('[u-attr="src"]').alt = row.title;
+        const tempInner = this.#el.temp2.content.cloneNode(true);
+        tempInner.querySelector('[u-attr="href"]').href = path;
+        tempInner.querySelector('[u-attr="src"]').src = path;
+        tempInner.querySelector('[u-attr="src"]').alt = row.title;
         if (path !== list[0])
-          temp2.querySelector('[u-attr="class"]').classList.add("d-none");
-        temp1.querySelector('[u-attr="images"]').append(temp2);
+          tempInner.querySelector('[u-attr="class"]').classList.add("d-none");
+        fragmentInner.append(tempInner);
       });
-      this.#el.viewer.append(temp1);
+      tempOuter.querySelector('[u-attr="images"]').append(fragmentInner);
+      fragmentOuter.append(tempOuter);
     });
+
+    this.#el.viewer.append(fragmentOuter);
 
     await this.#createPagenation();
     this.#el.pagination
@@ -228,6 +236,7 @@ export default class CatalogViewer {
    * ページネーションを生成
    */
   async #createPagenation() {
+    const fragment = document.createDocumentFragment();
     /**
      * バレットの追加
      * @param {string} transitionTarget
@@ -288,15 +297,16 @@ export default class CatalogViewer {
       });
     });
     const visiblePagenationList = this.#filteringPagenation(this.currentChunk);
-    visiblePagenationList.forEach((row) =>
-      this.#el.pagination.append(row.bullet)
-    );
+    visiblePagenationList.forEach((row) => fragment.append(row.bullet));
 
     // ページ送りボタンの表示
-    this.#el.pagination.prepend(this.#pageTurn.prev);
-    this.#el.pagination.prepend(this.#pageTurn.first);
-    this.#el.pagination.append(this.#pageTurn.next);
-    this.#el.pagination.append(this.#pageTurn.last);
+    fragment.prepend(this.#pageTurn.prev);
+    fragment.prepend(this.#pageTurn.first);
+    fragment.append(this.#pageTurn.next);
+    fragment.append(this.#pageTurn.last);
+
+    // 要素の一括追加
+    this.#el.pagination.append(fragment);
   }
 
   /**
