@@ -1,0 +1,11 @@
+#すべての階層に適用
+.DS_Store
+.bak
+.bk
+.dev
+.vite
+.vscode
+.env*
+node_modules
+sozai
+
