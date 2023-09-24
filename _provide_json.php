@@ -1,6 +1,17 @@
 <?php
-// POSTデータ取得
-$post = json_decode(file_get_contents('php://input'), true);
+
+
+try {
+  // POSTデータ取得
+  $post = json_decode(file_get_contents('php://input'), true);
+  if (!$post) {
+    throw new Exception("418 I'm a teapot");
+  }
+} catch (Exception $e) {
+  echo $e->getMessage();
+  exit;
+}
+
 
 $id_list = $post["list_of_id"];
 $img_dirs = "./sample/";
