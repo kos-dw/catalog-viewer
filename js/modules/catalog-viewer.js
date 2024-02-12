@@ -8,8 +8,6 @@ export default class CatalogViewer {
   #el;
   #pagenationChilds;
   #pageTurn;
-  #api;
-  #resourceMap;
   #lightbox;
   #lightboxSelector;
   currentChunk;
@@ -19,8 +17,8 @@ export default class CatalogViewer {
    * CatalogViewer のインスタンスを作成
    * @param {Object} props - プロパティオブジェクト
    * @param {string} props.containerSelector - コンテナのセレクタ
-   * @param {string} props.api - データを提供するAPIのURL
-   * @param {string} props.resourceMap - リソースマップのURL
+   * @param {Object} props.itemList - イメージリスト
+   * @param {number} props.itemsPerPage - イメージリスト
    * @param {any} props.lightbox - 画像ポップアッププラグイン
    * @param {string} props.lightboxSelector - 画像ポップアッププラグインのセレクタ
    * @memberof CatalogViewer
@@ -28,13 +26,13 @@ export default class CatalogViewer {
   constructor(props) {
     /** @type {HTMLDivElement} */
     this.#wrapper = document.querySelector(props.containerSelector);
-    /** @type {{title:string,imgs_id:string}[]} アイテムリスト */
-    this.#itemList = [];
+    /** @type {{title:string,imgs:string[]}[]} アイテムリスト */
+    this.#itemList = props.itemList;
     /** ページネーションの1ページあたりの要素数 */
-    this.#itemsPerPage = 4;
+    this.#itemsPerPage = props.itemsPerPage;
     /**
      * 1ページごとに表示するアイテムの塊
-     * @type {{ id: number; chunk: { title: string; imgs_id: string; }[];}[]}
+     * @type {{ id: number; chunk: { title: string; imgs: string[]; }[];}[]}
      */
     this.#chunks = [];
     /** 要素のオブジェクト */
@@ -62,10 +60,6 @@ export default class CatalogViewer {
      * @type {{ first: Node, prev: Node, next: Node, last: Node }}
      */
     this.#pageTurn = {};
-    /** データを提供するAPIのURL */
-    this.#api = props.api;
-    /** リソースマップのURL */
-    this.#resourceMap = props.resourceMap;
     /** 画像ポップアッププラグイン */
     this.#lightbox = props.lightbox;
     /** 画像ポップアッププラグインのセレクタ */
@@ -83,14 +77,6 @@ export default class CatalogViewer {
    */
   async #init() {
     // 表示ブロックのリストを作成
-    try {
-      const res = await fetch(this.#resourceMap);
-      if (!res.ok) throw new Error("Fetch error");
-      const json = await res.json();
-      this.#itemList = json;
-    } catch (e) {
-      console.error(e.mesage);
-    }
     this.#chunks = this.#createChunkArray(this.#itemList, this.#itemsPerPage);
     this.chunkLength = this.#chunks.length;
 
@@ -135,7 +121,7 @@ export default class CatalogViewer {
 
   /**
    * 塊の作成
-   * @param {{title:string,imgs_id:string}[]} itemArray 要素の配列
+   * @param {{title:string,imgs:string[]}[]} itemArray 要素の配列
    * @param {number} chunkSize 塊のサイズ
    */
   #createChunkArray(itemArray, chunkSize) {
@@ -156,30 +142,6 @@ export default class CatalogViewer {
   }
 
   /**
-   * イメージリストの取得
-   * @param {{title:string,imgs_id:string}[]} chunk アイテムリスト
-   * @return {{image_paths:string[],imgs_id:string}[]}
-   */
-  async #getImageList(chunk) {
-    try {
-      const res = await fetch(this.#api, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          list_of_id: chunk.map((row) => row.imgs_id),
-        }),
-      });
-      if (!res.ok) throw new Error("Fetch error");
-      const json = await res.json();
-      return json;
-    } catch (e) {
-      console.error(e.mesage);
-    }
-  }
-
-  /**
    * ページの表示
    * @param {number} chunkSize 塊のサイズ
    */
@@ -192,13 +154,12 @@ export default class CatalogViewer {
     this.currentChunk = nextIndex;
 
     const chunk = this.#chunks.find((chunk) => chunk.id === nextIndex).chunk;
-    const imageList = await this.#getImageList(chunk);
+    // const imageList = await this.#getImageList(chunk);
 
     // 表示エリアの要素をリセット
     this.#el.viewer.innerHTML = "";
 
     // 表示エリアに要素を追加
-
     const fragmentOuter = document.createDocumentFragment();
     chunk.forEach((row) => {
       // template要素を複製してデータを挿入
@@ -207,15 +168,12 @@ export default class CatalogViewer {
       tempOuter.querySelector('[u-attr="title"]').textContent = row.title;
 
       // 表示エリア内のネストした画像表示部にtempleteをクローンした要素を追加
-      let list = imageList.find(
-        (img) => row.imgs_id === img.imgs_id
-      ).image_paths;
-      list.forEach((path) => {
+      row.imgs.forEach((path) => {
         const tempInner = this.#el.temp2.content.cloneNode(true);
         tempInner.querySelector('[u-attr="href"]').href = path;
         tempInner.querySelector('[u-attr="src"]').src = path;
         tempInner.querySelector('[u-attr="src"]').alt = row.title;
-        if (path !== list[0])
+        if (path !== row.imgs[0])
           tempInner.querySelector('[u-attr="class"]').classList.add("d-none");
         fragmentInner.append(tempInner);
       });
@@ -323,18 +281,22 @@ export default class CatalogViewer {
     }
 
     // start付近の挙動
+    if (currentPage <= 1) {
+      this.#pageTurn.prev.querySelector("button").disabled = true;
+    }
     if (currentPage < threshold + 1) {
       start = 1;
       end = threshold * 2 + 1;
       this.#pageTurn.first.querySelector("button").disabled = true;
-      this.#pageTurn.prev.querySelector("button").disabled = true;
     }
 
     // last付近の挙動
+    if (currentPage >= this.#pagenationChilds.length) {
+      this.#pageTurn.next.querySelector("button").disabled = true;
+    }
     if (currentPage > this.#pagenationChilds.length - threshold) {
       start = this.#pagenationChilds.length - threshold * 2;
       end = this.#pagenationChilds.length;
-      this.#pageTurn.next.querySelector("button").disabled = true;
       this.#pageTurn.last.querySelector("button").disabled = true;
     }
 
@@ -366,7 +328,7 @@ export default class CatalogViewer {
     try {
       this.#lightbox(this.#lightboxSelector);
     } catch (e) {
-      console.error(e.message);
+      console.error(e);
     }
   }
 }
